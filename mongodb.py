@@ -8,6 +8,18 @@ import sys
 
 DB_NAME = 'company_eval'
 
+def make_edgar_request(url):
+    """
+    Make a request to EDGAR (Electronic Data Gathering, Analysis and Retrieval)
+    :param url:
+    :return: response
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+        "Accept-Encoding": "gzip, deflate, br",
+    }
+    return requests.get(url, headers=headers)
+
 def get_mongodb_client():
     """
     Get mongodb client
@@ -67,8 +79,17 @@ def get_collection_documents(collection_name):
     return collection.find({})
 
 def download_document(url, cik, form_type, filing_date):
-    # Implement the logic to download the document from the URL
-    # and insert it into the MongoDB collection "documents"
+    response = make_edgar_request(url)
+    r = response.text
+    doc = {"html": r, "cik": cik, "form_type": form_type, "filing_date": filing_date, "updated_at": updated_at, "_id": url}
+    try:
+        mongodb.insert_document("documents", doc)
+    except DocumentTooLarge:
+        # DocumenTooLarge is raised by mongodb when uploading files larger than 16MB
+        # To avoid this it is better to save this kind of files in a separate storate like S3 and retriving them when needed.
+        # Another options could be using mongofiles: https://www.mongodb.com/docs/database-tools/mongofiles/#mongodb-binary-bin.mongofiles
+        # for management of large files saved in mongo db.
+        print("Document too Large (over 16MB)", url)
     pass
 
 def download_submissions_documents(cik, forms_to_download=("10-Q", "10-K", "8-K"), years=5):
