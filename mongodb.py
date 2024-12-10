@@ -5,6 +5,12 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import time
 import sys
+from pymongo.errors import DocumentTooLarge
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+import json
+import socket
 
 DB_NAME = 'company_eval'
 
@@ -15,8 +21,7 @@ def make_edgar_request(url):
     :return: response
     """
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-        "Accept-Encoding": "gzip, deflate, br",
+        "User-Agent": "your.email@email.com"
     }
     return requests.get(url, headers=headers)
 
@@ -25,6 +30,7 @@ def get_mongodb_client():
     Get mongodb client
     :return: mongodb client
     """
+    socket.getaddrinfo('localhost', 8080)
     # Get credentials
     parser = ConfigParser()
     _ = parser.read(os.path.join("credentials.cfg"))
@@ -32,16 +38,16 @@ def get_mongodb_client():
     password = parser.get("mongo_db", "password")
 
     # Set connection string
-    LOCAL_CONNECTION = "mongodb://localhost:27017"
-    ATLAS_CONNECTION = f"mongodb+srv://{username}:{password}@cluster0.3dxfmjo.mongodb.net/?" \
+    #LOCAL_CONNECTION = "mongodb://localhost:27017"
+    ATLAS_CONNECTION = f"mongodb+srv://{username}:{password}@cluster0.rrvyc.mongodb.net/" \
                        f"retryWrites=true&w=majority"
-    ATLAS_OLD_CONNECTION = f"mongodb://{username}:{password}@cluster0.3dxfmjo.mongodb.net:27017/?" \
+    ATLAS_OLD_CONNECTION = f"mongodb://{username}:{password}@cluster0.rrvyc.mongodb.net:27017/?" \
                           f"retryWrites=true&w=majority&tls=true"
 
-    connection_string = LOCAL_CONNECTION
+    connection_string = ATLAS_CONNECTION
 
     # Create a connection using MongoClient
-    client = MongoClient(connection_string)
+    client = MongoClient(host=connection_string,connect=False)
 
     return client
 
@@ -78,12 +84,12 @@ def get_collection_documents(collection_name):
     collection = get_collection(collection_name)
     return collection.find({})
 
-def download_document(url, cik, form_type, filing_date):
+def download_document(url, cik, form_type, filing_date,updated_at=None):
     response = make_edgar_request(url)
     r = response.text
     doc = {"html": r, "cik": cik, "form_type": form_type, "filing_date": filing_date, "updated_at": updated_at, "_id": url}
     try:
-        mongodb.insert_document("documents", doc)
+        insert_document("documents", doc)
     except DocumentTooLarge:
         # DocumenTooLarge is raised by mongodb when uploading files larger than 16MB
         # To avoid this it is better to save this kind of files in a separate storate like S3 and retriving them when needed.
@@ -91,6 +97,19 @@ def download_document(url, cik, form_type, filing_date):
         # for management of large files saved in mongo db.
         print("Document too Large (over 16MB)", url)
     pass
+
+def download_all_cik_submissions(cik):
+    """
+    Get list of submissions for a single company.
+    Upsert this list on MongoDB (each download contains all the submissions).
+    :param cik: cik of the company
+    :return:
+    """
+    url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    response = make_edgar_request(url)
+    r = response.json()
+    r["_id"] = cik
+    upsert_document("submissions", r)
 
 def download_submissions_documents(cik, forms_to_download=("10-Q", "10-K", "8-K"), years=5):
     """
@@ -136,3 +155,62 @@ def download_submissions_documents(cik, forms_to_download=("10-Q", "10-K", "8-K"
         
         # insert a quick sleep to avoid reaching edgar rate limit
         time.sleep(0.2)
+        
+def download_cik_ticker_map():
+    """
+    Get a mapping of cik (Central Index Key, id of company on edgar) and ticker on the exchange.
+    It upsert the mapping in MongoDB collection cik_ticker.
+    """
+    CIK_TICKER_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
+    response = make_edgar_request(CIK_TICKER_URL)
+    html_content = response.content
+    # Parse the HTML content using BeautifulSoup
+    soup = BeautifulSoup(html_content, 'html.parser')
+    r= json.loads(soup.text)
+    r["_id"] = "cik_ticker"
+    upsert_document("cik_ticker", r)
+    
+def get_df_cik_ticker_map():
+    """
+    Create a DataFrame from cik ticker document on MongoDB.
+    :return: DataFrame
+    """
+    try:
+        cik_ticker = get_collection_documents("cik_ticker").next()
+    except StopIteration:
+        print("cik ticker document not found")
+        return
+    df = pd.DataFrame(cik_ticker["data"], columns=cik_ticker["fields"])
+    
+    # add leading 0s to cik (always 10 digits)
+    df["cik"] = df.apply(lambda x: add_trailing_to_cik(x["cik"]), axis=1)
+    
+    return df
+
+def company_from_cik(cik):
+    """
+    Get company info from cik
+    :param cik: company id on EDGAR
+    :return: DataFrame row with company information (name, ticker, exchange)
+    """
+    df = get_df_cik_ticker_map()
+    try:
+        return df[df["cik"] == cik].iloc[0]
+    except IndexError:
+        return None
+
+def cik_from_ticker(ticker):
+    """
+    Get company cik from ticker
+    :param ticker: company ticker
+    :return: cik (company id on EDGAR)
+    """
+    df = get_df_cik_ticker_map()
+    try:
+        cik = df[df["ticker"] == ticker]["cik"].iloc[0]
+    except:
+        cik = -1
+    return cik
+
+def add_trailing_to_cik(cik_no_trailing):
+    return "{:010d}".format(cik_no_trailing)
