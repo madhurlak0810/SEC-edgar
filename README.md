@@ -86,6 +86,7 @@ The Financial Data Analytics Platform leverages data science and machine learnin
 - **Balamurugan**: Visualization and documentation.
 - **Abhyansh Anand**: Report creation and sectoral analysis.
 
+**GitHub Repository**: [SEC-edgar](https://github.com/madhurlak0810/SEC-edgar.git)
 
 ## Contact
 For questions or suggestions, please contact [Madhur Lakshmanan](mailto:madhulak@umd.edu).
