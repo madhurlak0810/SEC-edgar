@@ -75,11 +75,9 @@ The Financial Data Analytics Platform leverages data science and machine learnin
    ```bash
    pip install -r requirements.txt
    ```
-3. Run the data extraction and preprocessing pipeline:
-   ```bash
-   python data_pipeline.py
-   ```
-4. Visualize the insights with Tableau or view pre-generated dashboards.
+3. Go through qualitative analysis and Project checkpoint:
+   
+4. Visualize the insights with Tableau or view pre-generated dashboards using the tbwx file and excel.
 
 ## Contributions
 - **Madhur Lakshmanan**: Data curation, preprocessing, and MongoDB integration and OpenAI integration.
@@ -88,6 +86,7 @@ The Financial Data Analytics Platform leverages data science and machine learnin
 - **Balamurugan**: Visualization and documentation.
 - **Abhyansh Anand**: Report creation and sectoral analysis.
 
+**GitHub Repository**: [SEC-edgar](https://github.com/madhurlak0810/SEC-edgar.git)
 
 ## Contact
 For questions or suggestions, please contact [Madhur Lakshmanan](mailto:madhulak@umd.edu).
