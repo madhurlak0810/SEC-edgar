@@ -75,11 +75,9 @@ The Financial Data Analytics Platform leverages data science and machine learnin
    ```bash
    pip install -r requirements.txt
    ```
-3. Run the data extraction and preprocessing pipeline:
-   ```bash
-   python data_pipeline.py
-   ```
-4. Visualize the insights with Tableau or view pre-generated dashboards.
+3. Go through qualitative analysis and Project checkpoint:
+   
+4. Visualize the insights with Tableau or view pre-generated dashboards using the tbwx file and excel.
 
 ## Contributions
 - **Madhur Lakshmanan**: Data curation, preprocessing, and MongoDB integration and OpenAI integration.
